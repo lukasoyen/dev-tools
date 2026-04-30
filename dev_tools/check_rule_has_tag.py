@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import re
 import sys
 from typing import TYPE_CHECKING
 
+from dev_tools.build_file_parsing_util import find_rule_calls as find_build_file_rule_calls
+from dev_tools.build_file_parsing_util import rule_has_tag
 from dev_tools.git_hook_utils import create_default_parser
 
 if TYPE_CHECKING:
@@ -19,36 +20,8 @@ def parse_arguments(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _remove_comments(content: str) -> str:
-    return re.sub(r"(?m)#.*$", "", content)
-
-
 def find_rule_calls(content: str, rule_name: str) -> list[str]:
-    content_without_comments = _remove_comments(content)
-    rule_pattern = re.compile(rf"(?m)(?<![A-Za-z0-9_]){re.escape(rule_name)}\s*\(")
-    rule_calls: list[str] = []
-
-    for match in rule_pattern.finditer(content_without_comments):
-        open_parens_count = 1
-        current_index = match.end()
-
-        while current_index < len(content_without_comments) and open_parens_count > 0:
-            character = content_without_comments[current_index]
-            if character == "(":
-                open_parens_count += 1
-            elif character == ")":
-                open_parens_count -= 1
-            current_index += 1
-
-        if open_parens_count == 0:
-            rule_calls.append(content_without_comments[match.end() : current_index - 1])
-
-    return rule_calls
-
-
-def rule_has_tag(rule_body: str, tag: str) -> bool:
-    tags_pattern = re.compile(r'(?ms)(?<![A-Za-z0-9_])tags\s*=\s*\[[^\]]*["\']' + re.escape(tag) + r'["\']')
-    return bool(tags_pattern.search(_remove_comments(rule_body)))
+    return [rule_call.body for rule_call in find_build_file_rule_calls(content, rule_name)]
 
 
 def is_rule_missing_tag(rule_body: str, tag: str) -> bool:
